@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -32,37 +32,33 @@
 #include <vmci_sockets.h>
 
 #include "testutil.hpp"
+#include "testutil_unity.hpp"
+
+SETUP_TEARDOWN_TESTCONTEXT
+
+void test_pair_vmci ()
+{
+    std::stringstream s;
+    s << "vmci://" << VMCISock_GetLocalCID () << ":" << 5560;
+    std::string endpoint = s.str ();
+
+    void *sb = test_context_socket (ZMQ_PAIR);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_bind (sb, endpoint.c_str ()));
+
+    void *sc = test_context_socket (ZMQ_PAIR);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_connect (sc, endpoint.c_str ()));
+
+    expect_bounce_fail (sb, sc);
+
+    test_context_socket_close_zero_linger (sc);
+    test_context_socket_close_zero_linger (sb);
+}
 
 int main (void)
 {
-    setup_test_environment();
-    void *ctx = zmq_ctx_new ();
-    assert (ctx);
+    setup_test_environment ();
 
-    std::stringstream s;
-    s << "vmci://" << VMCISock_GetLocalCID() << ":" << 5560;
-    std::string endpoint = s.str();
-
-    void *sb = zmq_socket (ctx, ZMQ_PAIR);
-    assert (sb);
-    int rc = zmq_bind (sb, endpoint.c_str());
-    assert (rc == 0);
-
-    void *sc = zmq_socket (ctx, ZMQ_PAIR);
-    assert (sc);
-    rc = zmq_connect (sc, endpoint.c_str());
-    assert (rc == 0);
-
-    bounce (sb, sc);
-
-    rc = zmq_close (sc);
-    assert (rc == 0);
-
-    rc = zmq_close (sb);
-    assert (rc == 0);
-
-    rc = zmq_ctx_term (ctx);
-    assert (rc == 0);
-
-    return 0;
+    UNITY_BEGIN ();
+    RUN_TEST (test_pair_vmci);
+    return UNITY_END ();
 }

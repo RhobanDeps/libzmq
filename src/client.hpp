@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -31,51 +31,43 @@
 #define __ZMQ_CLIENT_HPP_INCLUDED__
 
 #include "socket_base.hpp"
-#include "session_base.hpp"
 #include "fq.hpp"
 #include "lb.hpp"
 
 namespace zmq
 {
+class ctx_t;
+class msg_t;
+class pipe_t;
+class io_thread_t;
 
-    class ctx_t;
-    class msg_t;
-    class pipe_t;
-    class io_thread_t;
-    class socket_base_t;
+class client_t ZMQ_FINAL : public socket_base_t
+{
+  public:
+    client_t (zmq::ctx_t *parent_, uint32_t tid_, int sid_);
+    ~client_t ();
 
-    class client_t :
-        public socket_base_t
-    {
-    public:
+  protected:
+    //  Overrides of functions from socket_base_t.
+    void xattach_pipe (zmq::pipe_t *pipe_,
+                       bool subscribe_to_all_,
+                       bool locally_initiated_);
+    int xsend (zmq::msg_t *msg_);
+    int xrecv (zmq::msg_t *msg_);
+    bool xhas_in ();
+    bool xhas_out ();
+    void xread_activated (zmq::pipe_t *pipe_);
+    void xwrite_activated (zmq::pipe_t *pipe_);
+    void xpipe_terminated (zmq::pipe_t *pipe_);
 
-        client_t (zmq::ctx_t *parent_, uint32_t tid_, int sid);
-        ~client_t ();
+  private:
+    //  Messages are fair-queued from inbound pipes. And load-balanced to
+    //  the outbound pipes.
+    fq_t _fq;
+    lb_t _lb;
 
-    protected:
-
-        //  Overrides of functions from socket_base_t.
-        void xattach_pipe (zmq::pipe_t *pipe_, bool subscribe_to_all_);        
-        int xsend (zmq::msg_t *msg_);
-        int xrecv (zmq::msg_t *msg_);
-        bool xhas_in ();
-        bool xhas_out ();
-        blob_t get_credential () const;
-        void xread_activated (zmq::pipe_t *pipe_);
-        void xwrite_activated (zmq::pipe_t *pipe_);
-        void xpipe_terminated (zmq::pipe_t *pipe_);
-        
-    private:
-
-        //  Messages are fair-queued from inbound pipes. And load-balanced to
-        //  the outbound pipes.
-        fq_t fq;
-        lb_t lb;
-        
-        client_t (const client_t &);
-        const client_t  &operator = (const client_t&);
-    };
-
+    ZMQ_NON_COPYABLE_NOR_MOVABLE (client_t)
+};
 }
 
 #endif

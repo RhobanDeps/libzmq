@@ -20,7 +20,7 @@
 
 # Script to generate all required files from fresh git checkout.
 
-# Debian and Ubuntu do not shipt libtool anymore, but OSX does not ship libtoolize.
+# Debian and Ubuntu do not ship libtool anymore, but OSX does not ship libtoolize.
 command -v libtoolize >/dev/null 2>&1
 if  [ $? -ne 0 ]; then
     command -v libtool >/dev/null 2>&1
@@ -43,7 +43,8 @@ if [ $? -ne 0 ]; then
 fi
 
 autoreconf --install --force --verbose -I config
-if [ $? -ne 0 ]; then
-    echo "autogen.sh: error: autoreconf exited with status $?" 1>&2
+res=$?
+if [ "$res" -ne 0 ]; then
+    echo "autogen.sh: error: autoreconf exited with status $res" 1>&2
     exit 1
 fi

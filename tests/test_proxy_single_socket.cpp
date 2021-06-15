@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2017 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -28,87 +28,74 @@
 */
 
 #include "testutil.hpp"
-#include "../include/zmq_utils.h"
+#include "testutil_unity.hpp"
 
+#include <stdlib.h>
 
+SETUP_TEARDOWN_TESTCONTEXT
 
 // This is our server task.
 // It runs a proxy with a single REP socket as both frontend and backend.
 
-void
-server_task (void *ctx)
+void server_task (void * /*unused_*/)
 {
-    void *rep = zmq_socket (ctx, ZMQ_REP);
-    assert (rep);
-    int rc = zmq_bind (rep, "tcp://127.0.0.1:5563");
-    assert (rc == 0);
+    char my_endpoint[MAX_SOCKET_STRING];
+    void *rep = zmq_socket (get_test_context (), ZMQ_REP);
+    TEST_ASSERT_NOT_NULL (rep);
+    bind_loopback_ipv4 (rep, my_endpoint, sizeof my_endpoint);
 
     // Control socket receives terminate command from main over inproc
-    void *control = zmq_socket (ctx, ZMQ_SUB);
-    assert (control);
-    rc = zmq_setsockopt (control, ZMQ_SUBSCRIBE, "", 0);
-    assert (rc == 0);
-    rc = zmq_connect (control, "inproc://control");
-    assert (rc == 0);
+    void *control = zmq_socket (get_test_context (), ZMQ_REQ);
+    TEST_ASSERT_NOT_NULL (control);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_connect (control, "inproc://control"));
+    send_string_expect_success (control, my_endpoint, 0);
 
     // Use rep as both frontend and backend
-    rc = zmq_proxy_steerable (rep, rep, NULL, control);
-    assert (rc == 0);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_proxy_steerable (rep, rep, NULL, control));
 
-    rc = zmq_close (rep);
-    assert (rc == 0);
-    rc = zmq_close (control);
-    assert (rc == 0);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_close (rep));
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_close (control));
 }
 
 
 // The main thread simply starts several clients and a server, and then
 // waits for the server to finish.
+void test_proxy_single_socket ()
+{
+    void *server_thread = zmq_threadstart (&server_task, NULL);
+
+    // Control socket receives terminate command from main over inproc
+    void *control = test_context_socket (ZMQ_REP);
+    TEST_ASSERT_NOT_NULL (control);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_bind (control, "inproc://control"));
+    char *my_endpoint = s_recv (control);
+    TEST_ASSERT_NOT_NULL (my_endpoint);
+
+    // client socket pings proxy over tcp
+    void *req = test_context_socket (ZMQ_REQ);
+    TEST_ASSERT_NOT_NULL (req);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_connect (req, my_endpoint));
+
+    send_string_expect_success (req, "msg1", 0);
+    recv_string_expect_success (req, "msg1", 0);
+
+    send_string_expect_success (req, "msg22", 0);
+    recv_string_expect_success (req, "msg22", 0);
+
+    send_string_expect_success (control, "TERMINATE", 0);
+
+    test_context_socket_close (control);
+    test_context_socket_close (req);
+    free (my_endpoint);
+
+    zmq_threadclose (server_thread);
+}
 
 int main (void)
 {
     setup_test_environment ();
 
-    void *ctx = zmq_ctx_new ();
-    assert (ctx);
-    // client socket pings proxy over tcp
-    void *req = zmq_socket (ctx, ZMQ_REQ);
-    assert (req);
-    int rc = zmq_connect (req, "tcp://127.0.0.1:5563");
-    assert (rc == 0);
-
-    // Control socket receives terminate command from main over inproc
-    void *control = zmq_socket (ctx, ZMQ_PUB);
-    assert (control);
-    rc = zmq_bind (control, "inproc://control");
-    assert (rc == 0);
-
-    void *server_thread = zmq_threadstart(&server_task, ctx);
-
-    char buf[255];
-    rc = zmq_send(req, "msg1", 4, 0);
-    assert (rc == 4);
-    rc = zmq_recv(req, buf, 255, 0);
-    assert (rc == 4);
-    assert (memcmp (buf, "msg1", 4) == 0);
-
-    rc = zmq_send(req, "msg22", 5, 0);
-    assert (rc == 5);
-    rc = zmq_recv(req, buf, 255, 0);
-    assert (rc == 5);
-    assert (memcmp (buf, "msg22", 5) == 0);
-
-    rc = zmq_send (control, "TERMINATE", 9, 0);
-    assert (rc == 9);
-
-    rc = zmq_close (control);
-    assert (rc == 0);
-    rc = zmq_close (req);
-    assert (rc == 0);
-
-    zmq_threadclose (server_thread);
-
-    rc = zmq_ctx_term (ctx);
-    assert (rc == 0);
-    return 0;
+    UNITY_BEGIN ();
+    RUN_TEST (test_proxy_single_socket);
+    return UNITY_END ();
 }

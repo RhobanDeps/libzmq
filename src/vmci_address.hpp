@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -40,30 +40,33 @@
 
 namespace zmq
 {
-    class vmci_address_t
-    {
-    public:
-        vmci_address_t (ctx_t *parent_);
-        vmci_address_t (const sockaddr *sa, socklen_t sa_len, ctx_t *parent_);
-        ~vmci_address_t ();
+class vmci_address_t
+{
+  public:
+    vmci_address_t ();
+    vmci_address_t (ctx_t *parent_);
+    vmci_address_t (const sockaddr *sa, socklen_t sa_len, ctx_t *parent_);
 
-        //  This function sets up the address for VMCI transport.
-        int resolve (const char *path_);
+    //  This function sets up the address for VMCI transport.
+    int resolve (const char *path_);
 
-        //  The opposite to resolve()
-        int to_string (std::string &addr_);
+    //  The opposite to resolve()
+    int to_string (std::string &addr_) const;
 
-        const sockaddr *addr () const;
-        socklen_t addrlen () const;
+#if defined ZMQ_HAVE_WINDOWS
+    unsigned short family () const;
+#else
+    sa_family_t family () const;
+#endif
+    const sockaddr *addr () const;
+    socklen_t addrlen () const;
 
-    private:
-        struct sockaddr_vm address;
-        ctx_t *parent;
+  private:
+    struct sockaddr_vm address;
+    ctx_t *parent;
 
-        vmci_address_t ();
-        vmci_address_t (const vmci_address_t&);
-        const vmci_address_t &operator = (const vmci_address_t&);
-    };
+    ZMQ_NON_COPYABLE_NOR_MOVABLE (vmci_address_t)
+};
 }
 
 #endif

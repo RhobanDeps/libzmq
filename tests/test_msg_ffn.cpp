@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2017 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -28,111 +28,99 @@
 */
 
 #include "testutil.hpp"
+#include "testutil_unity.hpp"
 
-void ffn(void *data, void *hint) {
+#include <string.h>
+
+SETUP_TEARDOWN_TESTCONTEXT
+
+void ffn (void *data_, void *hint_)
+{
     // Signal that ffn has been called by writing "freed" to hint
-    memcpy(hint, (void *) "freed", 5);
+    (void) data_; //  Suppress 'unused' warnings at compile time
+    memcpy (hint_, (void *) "freed", 5);
 }
 
-int main (void) {
-    setup_test_environment();
+void test_msg_init_ffn ()
+{
     //  Create the infrastructure
-    void *ctx = zmq_ctx_new ();
-    assert (ctx);
+    char my_endpoint[MAX_SOCKET_STRING];
 
-    void *router = zmq_socket (ctx, ZMQ_ROUTER);
-    assert (router);
+    void *router = test_context_socket (ZMQ_ROUTER);
+    bind_loopback_ipv4 (router, my_endpoint, sizeof my_endpoint);
 
-    int rc = zmq_bind (router, "tcp://127.0.0.1:5555");
-    assert (rc == 0);
-
-    void *dealer = zmq_socket (ctx, ZMQ_DEALER);
-    assert (dealer);
-
-    rc = zmq_connect (dealer, "tcp://127.0.0.1:5555");
-    assert (rc == 0);
+    void *dealer = test_context_socket (ZMQ_DEALER);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_connect (dealer, my_endpoint));
 
     // Test that creating and closing a message triggers ffn
     zmq_msg_t msg;
     char hint[5];
     char data[255];
-    memcpy(data, (void *) "data", 4);
-    memcpy(hint, (void *) "hint", 4);
-    rc = zmq_msg_init_data(&msg, (void *)data, 255, ffn, (void*)hint);
-    assert (rc == 0);
-    rc = zmq_msg_close(&msg);
-    assert (rc == 0);
+    memset (data, 0, 255);
+    memcpy (data, (void *) "data", 4);
+    memcpy (hint, (void *) "hint", 4);
+    TEST_ASSERT_SUCCESS_ERRNO (
+      zmq_msg_init_data (&msg, (void *) data, 255, ffn, (void *) hint));
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_msg_close (&msg));
 
-    msleep(50);
-    assert (memcmp(hint, "freed", 5) == 0);
-    memcpy(hint, (void *) "hint", 4);
+    msleep (SETTLE_TIME);
+    TEST_ASSERT_EQUAL_STRING_LEN ("freed", hint, 5);
+    memcpy (hint, (void *) "hint", 4);
 
     // Making and closing a copy triggers ffn
     zmq_msg_t msg2;
-    zmq_msg_init(&msg2);
-    rc = zmq_msg_init_data(&msg, (void *)data, 255, ffn, (void *)hint);
-    assert (rc == 0);
-    rc = zmq_msg_copy(&msg2, &msg);
-    assert (rc == 0);
-    rc = zmq_msg_close(&msg2);
-    assert (rc == 0);
-    rc = zmq_msg_close(&msg);
-    assert (rc == 0);
+    zmq_msg_init (&msg2);
+    TEST_ASSERT_SUCCESS_ERRNO (
+      zmq_msg_init_data (&msg, (void *) data, 255, ffn, (void *) hint));
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_msg_copy (&msg2, &msg));
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_msg_close (&msg2));
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_msg_close (&msg));
 
-    msleep(50);
-    assert (memcmp(hint, "freed", 5) == 0);
-    memcpy(hint, (void *) "hint", 4);
+    msleep (SETTLE_TIME);
+    TEST_ASSERT_EQUAL_STRING_LEN ("freed", hint, 5);
+    memcpy (hint, (void *) "hint", 4);
 
     // Test that sending a message triggers ffn
-    rc = zmq_msg_init_data(&msg, (void *)data, 255, ffn, (void *)hint);
-    assert (rc == 0);
+    TEST_ASSERT_SUCCESS_ERRNO (
+      zmq_msg_init_data (&msg, (void *) data, 255, ffn, (void *) hint));
 
-    zmq_msg_send(&msg, dealer, 0);
+    zmq_msg_send (&msg, dealer, 0);
     char buf[255];
-    rc = zmq_recv(router, buf, 255, 0);
-    assert (rc > -1);
-    rc = zmq_recv(router, buf, 255, 0);
-    assert (rc == 255);
-    assert (memcmp(data, buf, 5) == 0);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_recv (router, buf, 255, 0));
+    TEST_ASSERT_EQUAL_INT (255, zmq_recv (router, buf, 255, 0));
+    TEST_ASSERT_EQUAL_STRING_LEN (data, buf, 4);
 
-    msleep(50);
-    assert (memcmp(hint, "freed", 5) == 0);
-    memcpy(hint, (void *) "hint", 4);
-    rc = zmq_msg_close(&msg);
-    assert (rc == 0);
+    msleep (SETTLE_TIME);
+    TEST_ASSERT_EQUAL_STRING_LEN ("freed", hint, 5);
+    memcpy (hint, (void *) "hint", 4);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_msg_close (&msg));
 
     // Sending a copy of a message triggers ffn
-    rc = zmq_msg_init(&msg2);
-    assert (rc == 0);
-    rc = zmq_msg_init_data(&msg, (void *)data, 255, ffn, (void *)hint);
-    assert (rc == 0);
-    rc = zmq_msg_copy(&msg2, &msg);
-    assert (rc == 0);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_msg_init (&msg2));
+    TEST_ASSERT_SUCCESS_ERRNO (
+      zmq_msg_init_data (&msg, (void *) data, 255, ffn, (void *) hint));
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_msg_copy (&msg2, &msg));
 
-    zmq_msg_send(&msg, dealer, 0);
-    rc = zmq_recv(router, buf, 255, 0);
-    assert (rc > -1);
-    rc = zmq_recv(router, buf, 255, 0);
-    assert (rc == 255);
-    assert (memcmp(data, buf, 5) == 0);
-    rc = zmq_msg_close(&msg2);
-    assert (rc == 0);
-    rc = zmq_msg_close(&msg);
-    assert (rc == 0);
+    zmq_msg_send (&msg, dealer, 0);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_recv (router, buf, 255, 0));
+    TEST_ASSERT_EQUAL_INT (255, zmq_recv (router, buf, 255, 0));
+    TEST_ASSERT_EQUAL_STRING_LEN (data, buf, 4);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_msg_close (&msg2));
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_msg_close (&msg));
 
-    msleep(50);
-    assert (memcmp(hint, "freed", 5) == 0);
-    memcpy(hint, (void *) "hint", 4);
+    msleep (SETTLE_TIME);
+    TEST_ASSERT_EQUAL_STRING_LEN ("freed", hint, 5);
 
     //  Deallocate the infrastructure.
-    rc = zmq_close (router);
-    assert (rc == 0);
-
-    rc = zmq_close (dealer);
-    assert (rc == 0);
-
-    rc = zmq_ctx_term (ctx);
-    assert (rc == 0);
-    return 0 ;
+    test_context_socket_close (router);
+    test_context_socket_close (dealer);
 }
 
+int main (void)
+{
+    setup_test_environment ();
+
+    UNITY_BEGIN ();
+    RUN_TEST (test_msg_init_ffn);
+    return UNITY_END ();
+}

@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -28,33 +28,54 @@
 */
 
 #include "testutil.hpp"
+#include "testutil_unity.hpp"
+
+#include <string>
+
+SETUP_TEARDOWN_TESTCONTEXT
+
+void test_roundtrip ()
+{
+    char my_endpoint[256];
+
+    void *sb = test_context_socket (ZMQ_PAIR);
+    bind_loopback_ipc (sb, my_endpoint, sizeof my_endpoint);
+
+    void *sc = test_context_socket (ZMQ_PAIR);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_connect (sc, my_endpoint));
+
+    bounce (sb, sc);
+
+    test_context_socket_close (sc);
+    test_context_socket_close (sb);
+}
+
+static const char prefix[] = "ipc://";
+
+void test_endpoint_too_long ()
+{
+    std::string endpoint_too_long;
+    endpoint_too_long.append (prefix);
+    for (size_t i = 0; i < 108; ++i) {
+        endpoint_too_long.append ("a");
+    }
+
+    void *sb = test_context_socket (ZMQ_PAIR);
+    // TODO ENAMETOOLONG is not listed in the errors returned by zmq_bind,
+    // should this be EINVAL?
+    TEST_ASSERT_FAILURE_ERRNO (ENAMETOOLONG,
+                               zmq_bind (sb, endpoint_too_long.data ()));
+
+    test_context_socket_close (sb);
+}
+
 
 int main (void)
 {
-    setup_test_environment();
-    void *ctx = zmq_ctx_new ();
-    assert (ctx);
+    setup_test_environment ();
 
-    void *sb = zmq_socket (ctx, ZMQ_PAIR);
-    assert (sb);
-    int rc = zmq_bind (sb, "ipc:///tmp/tester");
-    assert (rc == 0);
-
-    void *sc = zmq_socket (ctx, ZMQ_PAIR);
-    assert (sc);
-    rc = zmq_connect (sc, "ipc:///tmp/tester");
-    assert (rc == 0);
-    
-    bounce (sb, sc);
-
-    rc = zmq_close (sc);
-    assert (rc == 0);
-
-    rc = zmq_close (sb);
-    assert (rc == 0);
-
-    rc = zmq_ctx_term (ctx);
-    assert (rc == 0);
-
-    return 0 ;
+    UNITY_BEGIN ();
+    RUN_TEST (test_roundtrip);
+    RUN_TEST (test_endpoint_too_long);
+    return UNITY_END ();
 }

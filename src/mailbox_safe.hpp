@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -33,7 +33,6 @@
 #include <vector>
 #include <stddef.h>
 
-#include "platform.hpp"
 #include "signaler.hpp"
 #include "fd.hpp"
 #include "config.hpp"
@@ -45,50 +44,45 @@
 
 namespace zmq
 {
+class mailbox_safe_t ZMQ_FINAL : public i_mailbox
+{
+  public:
+    mailbox_safe_t (mutex_t *sync_);
+    ~mailbox_safe_t ();
 
-    class mailbox_safe_t : public i_mailbox
-    {
-    public:
+    void send (const command_t &cmd_);
+    int recv (command_t *cmd_, int timeout_);
 
-        mailbox_safe_t (mutex_t* sync_);
-        ~mailbox_safe_t ();
-
-        void send (const command_t &cmd_);
-        int recv (command_t *cmd_, int timeout_);
-
-        // Add signaler to mailbox which will be called when a message is ready
-        void add_signaler(signaler_t* signaler);
-        void remove_signaler(signaler_t* signaler);
+    // Add signaler to mailbox which will be called when a message is ready
+    void add_signaler (signaler_t *signaler_);
+    void remove_signaler (signaler_t *signaler_);
+    void clear_signalers ();
 
 #ifdef HAVE_FORK
-        // close the file descriptors in the signaller. This is used in a forked
-        // child process to close the file descriptors so that they do not interfere
-        // with the context in the parent process.
-        void forked () 
-        { 
-            // TODO: call fork on the condition variable
-        }
+    // close the file descriptors in the signaller. This is used in a forked
+    // child process to close the file descriptors so that they do not interfere
+    // with the context in the parent process.
+    void forked () ZMQ_FINAL
+    {
+        // TODO: call fork on the condition variable
+    }
 #endif
 
-    private:
+  private:
+    //  The pipe to store actual commands.
+    typedef ypipe_t<command_t, command_pipe_granularity> cpipe_t;
+    cpipe_t _cpipe;
 
-        //  The pipe to store actual commands.
-        typedef ypipe_t <command_t, command_pipe_granularity> cpipe_t;
-        cpipe_t cpipe;
+    //  Condition variable to pass signals from writer thread to reader thread.
+    condition_variable_t _cond_var;
 
-        //  Condition variable to pass signals from writer thread to reader thread.
-        condition_variable_t cond_var;
+    //  Synchronize access to the mailbox from receivers and senders
+    mutex_t *const _sync;
 
-        //  Synchronize access to the mailbox from receivers and senders
-        mutex_t* sync;
+    std::vector<zmq::signaler_t *> _signalers;
 
-        std::vector <zmq::signaler_t* > signalers;
-
-        //  Disable copying of mailbox_t object.
-        mailbox_safe_t (const mailbox_safe_t&);
-        const mailbox_safe_t &operator = (const mailbox_safe_t&);
-    };
-
+    ZMQ_NON_COPYABLE_NOR_MOVABLE (mailbox_safe_t)
+};
 }
 
 #endif

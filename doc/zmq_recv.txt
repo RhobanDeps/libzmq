@@ -19,7 +19,8 @@ by the 'socket' argument and store it in the buffer referenced by the 'buf'
 argument. Any bytes exceeding the length specified by the 'len' argument shall
 be truncated. If there are no messages available on the specified 'socket'
 the _zmq_recv()_ function shall block until the request can be satisfied.
-The 'flags' argument is a combination of the flags defined below:
+The 'flags' argument is a combination of the flags defined below: The 'buf'
+argument may be null if len is zero.
 
 *ZMQ_DONTWAIT*::
 Specifies that the operation should be performed in non-blocking mode. If there
@@ -49,7 +50,10 @@ in case the message was truncated. If not successful the function shall return
 ERRORS
 ------
 *EAGAIN*::
-Non-blocking mode was requested and no messages are available at the moment.
+Either the timeout set via the socket-option ZMQ_RCVTIMEO (see linkzmq:zmq_setsockopt[3])
+has been reached (flag ZMQ_DONTWAIT not set) without being able to read a message
+from the socket or there are no messages available at the moment (flag ZMQ_DONTWAIT set)
+and the operation would block.
 *ENOTSUP*::
 The _zmq_recv()_ operation is not supported by this socket type.
 *EFSM*::
@@ -80,6 +84,7 @@ SEE ALSO
 --------
 linkzmq:zmq_send[3]
 linkzmq:zmq_getsockopt[3]
+linkzmq:zmq_setsockopt[3]
 linkzmq:zmq_socket[7]
 linkzmq:zmq[7]
 

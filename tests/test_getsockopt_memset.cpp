@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
     This file is part of libzmq, the ZeroMQ core engine in C++.
     libzmq is free software; you can redistribute it and/or modify it under
     the terms of the GNU Lesser General Public License (LGPL) as published
@@ -23,42 +23,39 @@
 */
 
 #include "testutil.hpp"
+#include "testutil_unity.hpp"
+
+#include <string.h>
+
+SETUP_TEARDOWN_TESTCONTEXT
+
+void test_getsockopt_memset ()
+{
+    int64_t more;
+    size_t more_size = sizeof (more);
+
+    void *sb = test_context_socket (ZMQ_PUB);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_bind (sb, "inproc://a"));
+
+    void *sc = test_context_socket (ZMQ_SUB);
+    TEST_ASSERT_SUCCESS_ERRNO (zmq_connect (sc, "inproc://a"));
+
+    memset (&more, 0xFF, sizeof (int64_t));
+    TEST_ASSERT_SUCCESS_ERRNO (
+      zmq_getsockopt (sc, ZMQ_RCVMORE, &more, &more_size));
+    TEST_ASSERT_EQUAL_INT (sizeof (int), more_size);
+    TEST_ASSERT_EQUAL_INT (0, more);
+
+    // Cleanup
+    test_context_socket_close (sc);
+    test_context_socket_close (sb);
+}
 
 int main (void)
 {
-    int64_t more;
-    size_t more_size = sizeof(more);
+    setup_test_environment ();
 
-    setup_test_environment();
-    void *ctx = zmq_ctx_new ();
-    assert (ctx);
-
-    void *sb = zmq_socket (ctx, ZMQ_PUB);
-    assert (sb);
-    int rc = zmq_bind (sb, "inproc://a");
-    assert (rc == 0);
-
-    void *sc = zmq_socket (ctx, ZMQ_SUB);
-    assert (sc);
-    rc = zmq_connect (sc, "inproc://a");
-    assert (rc == 0);
-
-    memset(&more, 0xFF, sizeof(int64_t));
-    zmq_getsockopt(sc, ZMQ_RCVMORE, &more, &more_size);
-    assert (more_size == sizeof(int));
-    assert (more == 0);
-
-
-    // Cleanup
-
-    rc = zmq_close (sc);
-    assert (rc == 0);
-
-    rc = zmq_close (sb);
-    assert (rc == 0);
-
-    rc = zmq_ctx_term (ctx);
-    assert (rc == 0);
-
-    return 0 ;
+    UNITY_BEGIN ();
+    RUN_TEST (test_getsockopt_memset);
+    return UNITY_END ();
 }

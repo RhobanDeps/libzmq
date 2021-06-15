@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -37,66 +37,42 @@
 #include <string>
 
 #include "fd.hpp"
-#include "own.hpp"
-#include "stdint.hpp"
-#include "io_object.hpp"
+#include "vmci_address.hpp"
+#include "stream_listener_base.hpp"
 
 namespace zmq
 {
+class vmci_listener_t ZMQ_FINAL : public stream_listener_base_t
+{
+  public:
+    vmci_listener_t (zmq::io_thread_t *io_thread_,
+                     zmq::socket_base_t *socket_,
+                     const options_t &options_);
 
-    class io_thread_t;
-    class socket_base_t;
+    //  Set address to listen on.
+    int set_local_address (const char *addr_);
 
-    class vmci_listener_t : public own_t, public io_object_t
-    {
-    public:
+  protected:
+    std::string get_socket_name (fd_t fd_, socket_end_t socket_end_) const;
 
-        vmci_listener_t (zmq::io_thread_t *io_thread_,
-                zmq::socket_base_t *socket_, const options_t &options_);
-        ~vmci_listener_t ();
+  private:
+    //  Handlers for I/O events.
+    void in_event ();
 
-        //  Set address to listen on.
-        int set_address (const char *addr_);
+    //  Accept the new connection. Returns the file descriptor of the
+    //  newly created connection. The function may return retired_fd
+    //  if the connection was dropped while waiting in the listen backlog.
+    fd_t accept ();
 
-        // Get the bound address for use with wildcards
-        int get_address (std::string &addr_);
+    int create_socket (const char *addr_);
 
-    private:
+    //  Address to listen on.
+    vmci_address_t _address;
 
-        //  Handlers for incoming commands.
-        void process_plug ();
-        void process_term (int linger_);
-
-        //  Handlers for I/O events.
-        void in_event ();
-
-        //  Close the listening socket.
-        void close ();
-
-        //  Accept the new connection. Returns the file descriptor of the
-        //  newly created connection. The function may return retired_fd
-        //  if the connection was dropped while waiting in the listen backlog.
-        fd_t accept ();
-
-        //  Underlying socket.
-        fd_t s;
-
-        //  Handle corresponding to the listening socket.
-        handle_t handle;
-
-        //  Socket the listerner belongs to.
-        zmq::socket_base_t *socket;
-
-        // String representation of endpoint to bind to
-        std::string endpoint;
-
-        vmci_listener_t (const vmci_listener_t&);
-        const vmci_listener_t &operator = (const vmci_listener_t&);
-    };
-
+    ZMQ_NON_COPYABLE_NOR_MOVABLE (vmci_listener_t)
+};
 }
 
 #endif
 
 #endif
-
