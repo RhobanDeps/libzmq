@@ -3,15 +3,6 @@
 cmake_minimum_required(VERSION 2.8)
 project(ZeroMQ)
 
-# Find catkin macros and libraries
-find_package(catkin REQUIRED)
-
-# What is published by the 'serial package'
-catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES zmq
-)
-
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -Wall -Wextra")
 
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}")
