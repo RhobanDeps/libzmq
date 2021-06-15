@@ -652,7 +652,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   zmq_check_cxx_flag_prepend("-Wextra")
 endif()
 
-option(LIBZMQ_PEDANTIC "" ON)
+option(LIBZMQ_PEDANTIC "" OFF)
 option(LIBZMQ_WERROR "" OFF)
 
 # TODO: why is -Wno-long-long defined differently than in configure.ac?
@@ -1531,7 +1531,7 @@ if(BUILD_SHARED)
       proxy_thr)
 
   if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug") # Why?
-    option(WITH_PERF_TOOL "Build with perf-tools" ON)
+    option(WITH_PERF_TOOL "Build with perf-tools" OFF)
   else()
     option(WITH_PERF_TOOL "Build with perf-tools" OFF)
   endif()
